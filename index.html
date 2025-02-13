@@ -1,5 +1,26 @@
 <!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><link rel="icon" href="data:">
-<title>福井県の観光による住民幸福度に関するアンケート結果</title>
+<title>地方公共団体におけるオープンデータの取組に関するアンケート結果</title></head><body>
+<h1>地方公共団体におけるオープンデータの取組に関するアンケート結果</h1>
+
+<select id="seldate"></select><br>
+<div id="types"></div>
+<div id="btns"></div><br>
+<div id="divsel"></div>
+<canvas id="canvas"></canvas>
+<div id="tbl"></div><br>
+  
+<label><input type="checkbox" id="chkmulti">詳細な分析</label><br>
+<!--
+<a href=split.html>2画面表示</a> <a href=split3.html>3画面表示</a> 
+-->
+
+<div id="credit">
+DATA: <a href=https://www.digital.go.jp/resources/data_questionnaire>地方公共団体へのオープンデータの取組に関するアンケート結果・回答一覧｜デジタル庁</a> → <a href=https://github.com/code4fukui/opendata-japan/>opendata-japan</a><br>
+APP: <a href="https://github.com/code4fukui/opendata-localgov-voice">src on GitHub</a> forked from <a href=https://github.com/code4fukui/fukui-kanko-civic-voice>code4fukui/fukui-kanko-civic-voice</a><br>
+</div>
+
+<script type="module" src="https://js.sabae.cc/QRCode.js"></script><qr-code></qr-code>
+
 <script type="module">
 import { CSV } from "https://js.sabae.cc/CSV.js";
 import { extendGraphics } from "https://js.sabae.cc/extendGraphics.js";
@@ -8,8 +29,13 @@ import { hsv2rgb } from "https://js.sabae.cc/hsv2rgb.js";
 import { Num } from "https://js.sabae.cc/Num.js";
 import { ArrayUtil } from "https://js.sabae.cc/ArrayUtil.js";
 
-//const multiseparator = ";";
-const multiseparator = ", ";
+const seloffset = 5;
+//const seloffset = 0;
+
+const multiseparator = ";";
+//const multiseparator = ", ";
+const omitnullanswer = true;
+const omitthrethold = 2;
 
 let csvdata;
 let types;
@@ -18,67 +44,11 @@ let selidx;
 const create = (tag) => document.createElement(tag);
 const clear = (ele) => ele.innerHTML = "";
 
-//const seloffset = 3;
-const seloffset = 0;
-
 let animduration = 100;
 
-// sort
-const FIXED_NAMES = [
-  [
-    "とてもそう思う",
-    "そう思う",
-    "ややそう思う",
-    "あまりそうは思わない",
-    "そうは思わない",
-    "全くそうは思わない",
-  ],
-  [
-    "とても評価している",
-    "評価している",
-    "どちらかといえば評価している",
-    "どちらともいえない",
-    "どちらかと言えば評価していない",
-    "評価していない",
-    "まったく評価していない",
-  ],
-  [
-    "とても好ましい",
-    "好ましい",
-    "どちらかと言えば好ましい",
-    "どちらともいえない",
-    "どちらかと言えば好ましくない",
-    "好ましくない",
-    "全く好ましくない",
-  ],
-  ["5", "4", "3", "2", "1"],
-  ["10", "9", "8", "7", "6", "5", "4", "3", "2", "1", "0"],
-];
-
-const getAnswerTypes = (csvdata) => {
-  const keys = csvdata[0];
-  const types = [];
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-    const data = [];
-    for (let j = 1; j < csvdata.length; j++) {
-      data.push(csvdata[j][i]);
-    }
-    const names = ArrayUtil.toUnique(data).sort();
-    let type = null;
-    for (let i = 0; i < FIXED_NAMES.length; i++) {
-      const fixed = FIXED_NAMES[i];
-      const fixeds = [...fixed].sort();
-      if (equalsArray(fixeds, names)) {
-        type = fixed;
-        break;
-      }
-    }
-    types.push(type);
-  }
-  return types;
+const getAnswerTypes = (csvdata, meta) => {
+  return meta.map(i => i.fixed ? i.values.split(";") : null);
 };
-
 
 const equalsArray = (a, b) => {
   if (a == b) return true;
@@ -108,6 +78,7 @@ const sortByType = (data) => {
   const fixed = types[selidx];
   if (!fixed) return false;
   for (const name of fixed) {
+    if (omitnullanswer && name === "") continue;
     if (!data.find(i => i[0] == name)) data.push([name, 0]);
   }
   data.sort((a, b) => fixed.indexOf(a[0]) - fixed.indexOf(b[0]));
@@ -150,10 +121,10 @@ const isFiltered = (d) => {
 };
 
 const containsData = (csvdata, idx) => {
-	for (let i = 1; i < csvdata.length; i++) {
-		if (csvdata[i][idx] !== "") return true;
-	}
-	return false;
+  for (let i = 1; i < csvdata.length; i++) {
+    if (csvdata[i][idx] !== "") return true;
+  }
+  return false;
 };
 
 const makeSelectOption = () => {
@@ -168,7 +139,7 @@ const makeSelectOption = () => {
       const d = csvdata[0][i];
       //if (d == "" || !containsData(csvdata, i)) continue;
       if (d == "") continue;
-			const d2 = makeResult(i).data;
+      const d2 = makeResult(i).data;
       const d2key = Object.keys(d2);
       //console.log(d);
       if (d2key.length == 1 || d2key.length > 20 || d.endsWith("その他")) continue;
@@ -213,7 +184,7 @@ const makeSelectOption = () => {
     const d = csvdata[0][i];
     //if (d == "" || !containsData(csvdata, i)) continue;
     if (d == "") continue;
-		const btn = create("option");
+    const btn = create("option");
     btn.textContent = d;
     btn.value = i;
     select.appendChild(btn);
@@ -268,7 +239,7 @@ const makeResult = (idx) => {
       d[v]++;
     }
   }
-	/*
+  /*
   // name change
   const d2 = {};
   for (const name in d) {
@@ -283,8 +254,8 @@ const makeResult = (idx) => {
       d2[name] = d[name];
     }
   }
-	*/
-	const d2 = d;
+  */
+  const d2 = d;
   //console.log(d2);
   if (flgmulti) {
     return { data: d2, unit: "人", sum };
@@ -308,17 +279,19 @@ const showTable = function(div, gdata) {
   if (sum === undefined) {
     sum = 0;
     for (const n in data) {
+      if (omitnullanswer && n === "") continue;
       sum += data[n];
     }
   }
   for (const n in data) {
+    if (omitnullanswer && n === "") continue;
     d.push([n, data[n]]);
   }
   
   // sort
   //if (!sortByFixed(d)) {
   if (!sortByType(d)) {
-    d.sort(function(a, b) {
+    d.sort((a, b) => {
       if (a[1] < b[1])
         return 1;
       if (a[1] == b[1])
@@ -349,7 +322,7 @@ const showTable = function(div, gdata) {
   }
   div.appendChild(tbl);
 };
-const omitData = (data, thr = 0.01) => {
+const omitData = (data, thr = omitthrethold) => {
   let sum = 0;
   for (const d of data) {
     sum += d[1];
@@ -399,6 +372,7 @@ const showCircleGraph = function(c, gdata) {
   let sum = 0;
   const data0 = gdata.data;
   for (const n in data0) {
+    if (omitnullanswer && n === "") continue;
     d0.push([n, data0[n]]);
     sum += data0[n];
   }
@@ -497,13 +471,12 @@ const showCircleGraph = function(c, gdata) {
   }, 10);
 };
 
-
 // entry
 onload = async () => {
   const dates0 = await CSV.fetchJSON("index.csv");
   const dates = {};
   for (const i of dates0) {
-    dates[i.title] = i.filename;
+    dates[i.title] = i.url;
   }
 
   for (const date in dates) {
@@ -522,17 +495,19 @@ onload = async () => {
       if (hashn == 0) {
       } else if (hashn < 0) {
         const date = dates0[dates0.length + hashn - 1];
-        seldate.value = date.filename;
+        seldate.value = date.url;
       } else {
-        seldate.value = dates0[hashn].filename;
+        seldate.value = dates0[hashn].url;
       }
     }
   }
   
   const show = async () => {
     const url = seldate.value;
+    const metaurl = dates0.find(i => i.url == url).url_meta;
     csvdata = await CSV.fetch(url);
-    types = getAnswerTypes(csvdata);
+    const meta = await CSV.fetchJSON(metaurl);
+    types = getAnswerTypes(csvdata, meta);
 
     showGraph();
     chkmulti.oninput = () => showGraph();
@@ -633,28 +608,6 @@ h3 {
   margin-top: 1em;
 }
 </style>
-</head>
-<body>
-
-<h1>福井県の観光による住民幸福度に関するアンケート結果</h1>
-
-<select id="seldate"></select><br>
-<div id="types"></div>
-<div id="btns"></div><br>
-<div id="divsel"></div>
-<canvas id="canvas"></canvas>
-<div id="tbl"></div><br>
-  
-<label><input type="checkbox" id="chkmulti">詳細な分析</label><br>
-<a href=split.html>2画面表示</a> <a href=split3.html>3画面表示</a> 
-
-<div id="credit">
-DATA: 福井県の観光による住民幸福度に関するアンケート by <a href=https://www.fukuishimbun.co.jp/category/fukui-kankodx>福井県観光DX推進マーケティングデータコンソーシアム</a><br>
-forked from: <a href=https://fukuno.jig.jp/app/csv/qgraph-localict2018.html>福井県こどもプログラミング協議会 2018年度 地域ICTクラブ アンケート結果</a><br>
-APP: <a href="https://github.com/code4fukui/fukui-kanko-civic-voice/">src on GitHub</a><br>
-</div>
-
-<script type="module" src="https://js.sabae.cc/QRCode.js"></script><qr-code></qr-code>
 
 </body>
 </html>
